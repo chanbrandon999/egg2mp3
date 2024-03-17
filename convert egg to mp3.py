@@ -18,13 +18,15 @@ FINAL_DIR = str("E:\\Music\\My Music 2\\Beat Saber 2")
 
 i = 0
 num_songs = len(os.listdir(WORKING_DIR))
+print(num_songs)
 
 for song_dir in os.listdir(WORKING_DIR):
   i += 1
 
   # Use for not converting certain songs 
   path_part_deny_conversion = "XXXXXXXXXXXXXXXX"
-  if path_part_deny_conversion not in song_dir:
+  if path_part_deny_conversion in song_dir:
+    print("skipping...")
     continue
 
 
@@ -32,13 +34,15 @@ for song_dir in os.listdir(WORKING_DIR):
   print(str(i) + "/" + str(num_songs) + " \tsong_dir:: " + song_dir)
   albumart_link = 69
   song_file_link = 69
-  try:
 
 # _  _ ____ ___ ____ ___  ____ ___ ____    ____ ____ _    _    ____ ____ ___ _ ____ _  _ 
 # |\/| |___  |  |__| |  \ |__|  |  |__|    |    |  | |    |    |___ |     |  | |  | |\ | 
 # |  | |___  |  |  | |__/ |  |  |  |  |    |___ |__| |___ |___ |___ |___  |  | |__| | \| 
 # Collect the info of the song from the beat saber info.dat file 
-    with open(str(song_dir) + "\\Info.dat") as song_dat_raw:
+  no_exception_metadata = True
+
+  try:
+    with open(str(song_dir) + "\\Info.dat", encoding="utf8") as song_dat_raw:
       song_dat_json = json.load(song_dat_raw)
       # print(song_dat_json)  # uncomment to print if you want
 
@@ -64,8 +68,49 @@ for song_dir in os.listdir(WORKING_DIR):
 
       # print("#####SONG#####")
       # print(song_name + " \t\tby \t\t" + song_author)
-  except:
-    print("ERROR WITH METADATA EXTRACTION!")
+  except Exception as e2:
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    print(exc_type, fname, exc_tb.tb_lineno)
+
+    print("ERROR WITH METADATA EXTRACTION! \t" + str(e2))
+    pass
+
+  try:
+    with open(str(song_dir) + "\\Info.dat") as song_dat_raw:
+      song_dat_json = json.load(song_dat_raw)
+      # print(song_dat_json)  # uncomment to print if you want
+
+      # Gets the name utilizing primary name and sub-name if a useful one exists
+      # Sub-name includes the [feat. artist] labels 
+      if len(song_dat_json["_songSubName"]) > 2:
+        song_name_non_utf8 = song_dat_json["_songName"] + " - " + song_dat_json["_songSubName"]
+      else:
+        song_name_non_utf8 = song_dat_json["_songName"]
+
+      # Find song author but if it does not exist, get the level author name. Will be wrong but better than nothing.
+      if len(song_dat_json["_songAuthorName"]) > 0:
+        song_author_non_utf8 = song_dat_json["_songAuthorName"]
+      else:
+        song_author_non_utf8 = song_dat_json["_levelAuthorName"]
+
+      # Remove spaces at the beginning and at the end of the string
+      song_author_non_utf8 = song_author_non_utf8.strip() 
+      
+      # Prepare to find album art and the file. 
+      albumart_link = song_dat_json["_coverImageFilename"]
+      song_file_link = song_dat_json["_songFilename"]
+
+      # print("#####SONG#####")
+      # print(song_name + " \t\tby \t\t" + song_author)
+  except Exception as e2:
+    no_exception_metadata = False
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    print(exc_type, fname, exc_tb.tb_lineno)
+
+    print("ERROR WITH METADATA EXTRACTION! \t" + str(e2))
+    print("CORRECTING PREVIOUS FILE TAGS!")
     pass
 
 # ____ ____ _  _ _  _ ____ ____ ___    ____ _  _ ___  _ ____ 
@@ -75,12 +120,14 @@ for song_dir in os.listdir(WORKING_DIR):
 
     # Desired output filename
     # mapcode - song name - song author.mp3
-    audio_filename = str(song_dir + " - " + song_name + " - " + song_author + ".mp3")
+    # #ASDFASDFASDFSADFASDFSDF # audio_filename = str((song_dir) + " - " + (song_name) + " - " + (song_author) + ".mp3")
+    audio_filename = str((song_dir) + " - " + (song_name_non_utf8) + " - " + (song_author_non_utf8) + ".mp3")
     
     # Find input file from the beat saber folders
-    audio_path_input = song_dir + "\\" + song_file_link                   
+    print(song_file_link)
+    audio_path_input = str(song_dir) + "\\" + str(song_file_link)
     # Figure out where converted file must go
-    audio_path_output = (FINAL_DIR  + "\\" + audio_filename)                
+    audio_path_output = (FINAL_DIR  + "\\" + audio_filename)
 
     # Must get rid of filename with the colon in the end. 
     # Overrides previous audio path output prepared from [audio_filename]
@@ -89,7 +136,7 @@ for song_dir in os.listdir(WORKING_DIR):
 
     audio_path_output_short = (FINAL_DIR  + "\\" + song_dir + ".mp3")  # For alternate if filename is too long
 
-      
+
     metadata_saved = {}
     # Check for existing converted files to overwrite. 
     if os.path.isfile(audio_path_output):
@@ -98,8 +145,10 @@ for song_dir in os.listdir(WORKING_DIR):
       audio_path_output = audio_path_output_short
       metadata_saved = EasyID3(audio_path_output_short)
 
-    # If the metadata doesn't exist, reproecss audio. 
-    if 'title' not in metadata_saved:
+    # If the metadata doesn't exist, reproecss audio.
+    # Set to true to do a in-place replacement of audio 
+    # if 'title' not in metadata_saved:
+    if False:
 
       print("processing audio:: " + audio_path_input)
       print("processing to:: " + audio_path_output)
@@ -137,11 +186,17 @@ for song_dir in os.listdir(WORKING_DIR):
       metadata = EasyID3(audio_path_output)
 
       # Rebuild metadata if does not exist
+      # Set to true to overwrite metadata
+      # if 'title' not in metadata or not song_name_non_utf8.isascii() or not song_author_non_utf8.isascii():
       if 'title' not in metadata:
+      # if True:
         print("Tagging audio:: " + audio_path_output)
         metadata['title'] = song_name
         metadata['artist'] = song_author
         metadata['albumartist'] = song_author
+        print(metadata)
+        print("song_name:: \t", song_name_non_utf8.isascii())
+        print("song_author:: \t", song_author_non_utf8.isascii())
         metadata.save()
         pass
       pass
@@ -188,19 +243,6 @@ for song_dir in os.listdir(WORKING_DIR):
     pass
 
   print("   ")
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
